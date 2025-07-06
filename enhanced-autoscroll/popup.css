@@ -49,6 +49,12 @@ body {
   border-color: #ffc107;
 }
 
+.status.scrolling.local {
+  background: #cce5ff;
+  color: #004085;
+  border-color: #007bff;
+}
+
 .form-group {
   margin-bottom: 16px;
 }

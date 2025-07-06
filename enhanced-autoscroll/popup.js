@@ -46,8 +46,28 @@ async function initializePopup() {
 // Update scrolling status
 async function updateScrollingStatus() {
   try {
+    // First check background script status
     const response = await chrome.runtime.sendMessage({ type: 'GET_STATUS' });
     isScrolling = response.isScrolling;
+    
+    // If scrolling, also check if using local scrolling
+    if (isScrolling) {
+      try {
+        // Query the active tab to get page info including local scrolling status
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs[0]?.id) {
+          const pageInfo = await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PAGE_INFO' });
+          if (pageInfo && pageInfo.localScrolling) {
+            updateUI('local');
+            return;
+          }
+        }
+      } catch (error) {
+        // Content script might not be available, fallback to normal status
+        console.log('Could not check local scrolling status:', error);
+      }
+    }
+    
     updateUI();
   } catch (error) {
     console.error('Error getting status:', error);
@@ -57,10 +77,15 @@ async function updateScrollingStatus() {
 }
 
 // Update UI based on current state
-function updateUI() {
+function updateUI(mode = 'normal') {
   if (isScrolling) {
-    statusElement.textContent = 'Scrolling';
-    statusElement.className = 'status scrolling';
+    if (mode === 'local') {
+      statusElement.textContent = 'Scrolling (Local Mode)';
+      statusElement.className = 'status scrolling local';
+    } else {
+      statusElement.textContent = 'Scrolling';
+      statusElement.className = 'status scrolling';
+    }
     startBtn.disabled = true;
     stopBtn.disabled = false;
   } else {
