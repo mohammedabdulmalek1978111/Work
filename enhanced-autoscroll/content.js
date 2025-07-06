@@ -6,6 +6,11 @@ const element = window.location.origin === 'https://docs.google.com'
   : null;
 
 let isLooping = false;
+let localScrolling = false;
+let localScrollTimer = null;
+let localScrollSettings = null;
+let lastHeartbeat = Date.now();
+let heartbeatTimer = null;
 
 // Calculate scroll percentage
 function getScrollPercentage(element) {
@@ -45,12 +50,94 @@ function scrollElement(mainElement, amount, loop = false) {
   return delta;
 }
 
+// Local scrolling function that works independently
+function performLocalScroll() {
+  if (!localScrolling || !localScrollSettings) return;
+  
+  const elements = [element, document?.body, document?.body?.parentNode].filter(Boolean);
+  
+  for (let elem of elements) {
+    const delta = scrollElement(elem, localScrollSettings.scrollPixels, localScrollSettings.loop);
+    if (delta) break; // Stop after first successful scroll
+  }
+}
+
+// Start local scrolling timer
+function startLocalScrolling(settings) {
+  console.log('Starting local scrolling with settings:', settings);
+  localScrolling = true;
+  localScrollSettings = settings;
+  
+  if (localScrollTimer) {
+    clearInterval(localScrollTimer);
+  }
+  
+  localScrollTimer = setInterval(performLocalScroll, settings.scrollDuration);
+}
+
+// Stop local scrolling timer
+function stopLocalScrolling() {
+  console.log('Stopping local scrolling');
+  localScrolling = false;
+  localScrollSettings = null;
+  
+  if (localScrollTimer) {
+    clearInterval(localScrollTimer);
+    localScrollTimer = null;
+  }
+}
+
+// Heartbeat system to detect when background script is throttled
+function startHeartbeatMonitoring() {
+  heartbeatTimer = setInterval(() => {
+    const now = Date.now();
+    const timeSinceLastHeartbeat = now - lastHeartbeat;
+    
+    // If we haven't received a heartbeat in over 100ms and we should be scrolling,
+    // start local scrolling as backup
+    if (timeSinceLastHeartbeat > 100 && localScrollSettings && !localScrolling) {
+      console.log('Background script appears throttled, starting local backup scrolling');
+      localScrolling = true;
+      if (!localScrollTimer) {
+        localScrollTimer = setInterval(performLocalScroll, localScrollSettings.scrollDuration);
+      }
+    }
+    
+    // Send ping to background script to maintain connection
+    chrome.runtime.sendMessage({
+      type: 'PING',
+      timestamp: now
+    }).catch(() => {
+      // Background script might be throttled or unavailable
+      if (localScrollSettings && !localScrolling) {
+        console.log('Cannot reach background script, enabling local scrolling');
+        startLocalScrolling(localScrollSettings);
+      }
+    });
+  }, 50); // Check every 50ms
+}
+
 // Handle messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Content script received message:', message);
   
+  // Update heartbeat on any message
+  lastHeartbeat = Date.now();
+  
   switch (message.type) {
     case 'SCROLL_STEP':
+      // Update settings for potential local fallback
+      localScrollSettings = {
+        scrollPixels: message.pixels,
+        scrollDuration: 25, // Default duration
+        loop: message.loop
+      };
+      
+      // Stop local scrolling since background is working
+      if (localScrolling) {
+        stopLocalScrolling();
+      }
+      
       // Perform a single scroll step
       const elements = [element, document?.body, document?.body?.parentNode].filter(Boolean);
       
@@ -62,9 +149,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true });
       break;
       
+    case 'START_LOCAL_SCROLLING':
+      // Background script is asking us to take over scrolling
+      startLocalScrolling(message.settings);
+      sendResponse({ success: true });
+      break;
+      
+    case 'STOP_LOCAL_SCROLLING':
+      stopLocalScrolling();
+      localScrollSettings = null;
+      sendResponse({ success: true });
+      break;
+      
     case 'RESET_LOOP':
       isLooping = false;
       sendResponse({ success: true });
+      break;
+      
+    case 'HEARTBEAT':
+      // Background script is alive
+      lastHeartbeat = Date.now();
+      sendResponse({ success: true, localScrolling });
       break;
       
     case 'GET_PAGE_INFO':
@@ -76,7 +181,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         clientHeight: mainElem.clientHeight,
         percentage: getScrollPercentage(mainElem),
         url: window.location.href,
-        title: document.title
+        title: document.title,
+        localScrolling: localScrolling
       };
       sendResponse(pageInfo);
       break;
@@ -101,16 +207,37 @@ chrome.runtime.sendMessage({
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     console.log('Page is now hidden, but scrolling should continue');
+    // When page becomes hidden, prepare for potential background throttling
+    if (localScrollSettings && !localScrolling) {
+      // Start local scrolling as backup immediately
+      startLocalScrolling(localScrollSettings);
+    }
   } else {
     console.log('Page is now visible');
+    // When page becomes visible again, let background script take over
+    if (localScrolling) {
+      stopLocalScrolling();
+      // Notify background script that we're visible again
+      chrome.runtime.sendMessage({
+        type: 'PAGE_VISIBLE',
+        settings: localScrollSettings
+      }).catch(() => {
+        // If background script is not responding, keep local scrolling
+        startLocalScrolling(localScrollSettings);
+      });
+    }
   }
 });
 
 // Handle page unload
 window.addEventListener('beforeunload', () => {
+  stopLocalScrolling();
   chrome.runtime.sendMessage({
     type: 'STOP_SCROLLING'
   }).catch(() => {
     // Ignore errors during page unload
   });
 });
+
+// Start heartbeat monitoring
+startHeartbeatMonitoring();
