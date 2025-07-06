@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Enhanced Autoscroll",
+  "short_name": "e-autoscroll",
+  "description": "Auto-scroll extension that works on multiple pages without requiring focus",
+  "version": "1.0",
+  "action": {
+    "default_icon": {
+      "32": "icon.png"
+    },
+    "default_title": "Enhanced Autoscroll",
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "commands": {
+    "Toggle Autoscroll": {
+      "description": "Pauses/Resumes Autoscroll on the current page",
+      "suggested_key": {
+        "default": "Alt+J",
+        "mac": "Alt+J"
+      }
+    }
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_end",
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ]
+}

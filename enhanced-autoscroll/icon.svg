@@ -1,0 +1,21 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="#007bff" stroke="#0056b3" stroke-width="4"/>
+  
+  <!-- Top arrow pointing down -->
+  <polygon points="64,25 48,45 56,45 56,55 72,55 72,45 80,45" fill="white"/>
+  
+  <!-- Middle line representing text/content -->
+  <rect x="35" y="58" width="58" height="3" fill="white"/>
+  <rect x="40" y="65" width="48" height="2" fill="white" opacity="0.8"/>
+  <rect x="35" y="70" width="58" height="2" fill="white" opacity="0.8"/>
+  
+  <!-- Bottom arrow pointing down -->
+  <polygon points="64,103 48,83 56,83 56,73 72,73 72,83 80,83" fill="white"/>
+  
+  <!-- Small dots to indicate continuous scrolling -->
+  <circle cx="45" cy="90" r="2" fill="white" opacity="0.6"/>
+  <circle cx="55" cy="94" r="2" fill="white" opacity="0.6"/>
+  <circle cx="65" cy="90" r="2" fill="white" opacity="0.6"/>
+  <circle cx="75" cy="94" r="2" fill="white" opacity="0.6"/>
+</svg>
